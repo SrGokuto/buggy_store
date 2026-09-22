@@ -1,14 +1,25 @@
 class TiendaOnline:
     # Sistema básico de gestión de inventario y ventas
     
-    def __init__(self, inventario_inicial={}):
-        self.inventario = inventario_inicial
+    def __init__(self, inventario_inicial=None):
+        # None por defecto: cada instancia recibe su propio diccionario.
+        # (Un {} como default se crea una sola vez y quedaría compartido.)
+        self.inventario = inventario_inicial if inventario_inicial is not None else {}
         self.ventas_totales = 0.0
 
     def agregar_producto(self, id_producto, nombre, precio, cantidad):
         """Agrega o actualiza un producto en el inventario."""
+        # Validar ANTES de tocar el inventario (nada se registra si el dato es inválido)
+        if precio < 0:
+            raise ValueError(f"El precio de '{id_producto}' no puede ser negativo: {precio}")
+        if cantidad < 0:
+            raise ValueError(f"La cantidad de '{id_producto}' no puede ser negativa: {cantidad}")
+
         if id_producto in self.inventario:
-            self.inventario[id_producto]['cantidad'] += cantidad
+            producto = self.inventario[id_producto]
+            producto['nombre'] = nombre   # actualizar nombre...
+            producto['precio'] = precio   # ...y precio si el producto ya existe
+            producto['cantidad'] += cantidad
         else:
             self.inventario[id_producto] = {'nombre': nombre, 'precio': precio, 'cantidad': cantidad}
 
@@ -19,12 +30,29 @@ class TiendaOnline:
         """
         total_pedido = 0.0
 
+        # Validamos TODOS los ítems del carrito ANTES de tocar el inventario.
+        # Así, un producto inexistente lanza un ValueError controlado (con el id
+        # del producto) y el pedido no queda procesado a medias.
+        for item in carrito:
+            id_prod = item['id_producto']
+            if id_prod not in self.inventario:
+                raise ValueError(
+                    f"No se puede procesar el pedido: el producto '{id_prod}' no existe en el inventario."
+                )
+
         for item in carrito:
             id_prod = item['id_producto']
             cant_comprada = item['cantidad']
 
             producto = self.inventario[id_prod]
             
+            # Validar stock suficiente antes de descontar (Bug 5)
+            if cant_comprada > producto['cantidad']:
+                raise ValueError(
+                    f"Stock insuficiente para '{id_prod}': "
+                    f"disponible {producto['cantidad']}, solicitado {cant_comprada}"
+                )
+
             # Actualizamos inventario y sumamos al total
             producto['cantidad'] -= cant_comprada
             total_pedido += producto['precio'] * cant_comprada
